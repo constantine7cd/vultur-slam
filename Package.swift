@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "vultur-slam",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .library(
@@ -17,13 +17,20 @@ let package = Package(
             targets: ["VulturSLAMCLI"]
         )
     ],
+    dependencies: [
+        .package(path: "Sources/VulturSLAMCore/ML/FastFoundationStereoMPS")
+    ],
     targets: [
         .target(
-            name: "VulturSLAMCore"
+            name: "VulturSLAMCore",
+            exclude: ["ML/FastFoundationStereoMPS"]
         ),
         .executableTarget(
             name: "VulturSLAMCLI",
-            dependencies: ["VulturSLAMCore"]
+            dependencies: [
+                "VulturSLAMCore",
+                .product(name: "FastFoundationStereoMPS", package: "FastFoundationStereoMPS"),
+            ]
         ),
         .testTarget(
             name: "VulturSLAMCoreTests",

@@ -13,6 +13,8 @@ SLAM algorithms:
   explicit FFI boundary types for zero-copy handoff.
 - Rust `slam-core` workspace with FFI-safe backend contracts.
 - Offline smoke pipeline and config validation commands.
+- Native FastFoundationStereoMPS package integration for Apple Silicon disparity
+  inference from rectified stereo pairs.
 
 ## Build and test
 
@@ -20,6 +22,7 @@ SLAM algorithms:
 swift test
 swift run vultur-slam validate-config --calibration Fixtures/calibration.example.json
 swift run vultur-slam run-config --config Fixtures/pipeline.offline.example.json
+swift run vultur-slam fast-foundation-stereo --output demo_data/disparity.fp32
 ```
 
 Rust is not required to build the Swift scaffold, but the backend crate is laid
@@ -36,12 +39,42 @@ vultur-slam run-config --config <pipeline.json>
 vultur-slam validate-config --calibration <calibration.json>
 vultur-slam list-cameras
 vultur-slam offline --left <file-or-dir> --right <file-or-dir> --calibration <calibration.json> [--output <dir>] [--max-frames <n>]
+vultur-slam fast-foundation-stereo [--left <image>] [--right <image>] [--resources <Contents/Resources>] [--output <disparity.fp32>] [--valid-iters <n>] [--cost-precision <float32|float16>]
 vultur-slam online --calibration <calibration.json> [--left-device <id>] [--right-device <id>] [--fps <n>]
 ```
 
 `online` is intentionally present as an interface placeholder. The first
 concrete online source should implement the same `StereoFrameSource` contract
 using AVFoundation, with vendor camera SDKs added behind that abstraction later.
+
+## FastFoundationStereoMPS
+
+`Sources/VulturSLAMCore/ML/FastFoundationStereoMPS` is linked as a local SwiftPM
+package. The root `VulturSLAMCore` target excludes the nested package sources so
+the model runner remains an independent library while `VulturSLAMCLI` can import
+`FastFoundationStereoMPS`.
+
+Model resources are expected under `Contents/Resources` by default:
+
+```text
+Contents/Resources/
+  feature_projection.mlpackage
+  FastFoundationStereoWeights/
+    manifest.json
+    *.bin
+```
+
+The demo command loads `demo_data/left.png` and `demo_data/right.png` unless
+overridden, runs FastFoundationStereoMPS, and writes the full-resolution
+disparity tensor:
+
+```sh
+swift run vultur-slam fast-foundation-stereo --left demo_data/left.png --right demo_data/right.png --output demo_data/disparity.fp32
+```
+
+The output is raw FP32 tensor data. A JSON sidecar is written beside it, for
+example `demo_data/disparity.fp32.json`, with shape and layout metadata. The
+current fixed output shape is `[1, 480, 640, 1]` in `nhwc` layout.
 
 ## Architecture notes
 

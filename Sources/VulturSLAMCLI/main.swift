@@ -1,4 +1,5 @@
 import Foundation
+import FastFoundationStereoMPS
 import VulturSLAMCore
 
 @main
@@ -56,6 +57,8 @@ struct VulturSLAMCommand {
             )
             let outputDirectory = options.url("output") ?? URL(fileURLWithPath: ".")
             try write(summary: summary, outputDirectory: outputDirectory)
+        case "fast-foundation-stereo":
+            try runFastFoundationStereo(options: options)
         case "online":
             let calibration = try StereoCalibration.load(from: try options.requiredURL("calibration"))
             try calibration.validate()
@@ -71,6 +74,45 @@ struct VulturSLAMCommand {
         default:
             throw UsageError.unknownCommand(command)
         }
+    }
+
+    private static func runFastFoundationStereo(options: CLIOptions) throws {
+        let resourcesDirectory = options.url("resources") ?? URL(fileURLWithPath: "Contents/Resources")
+        let resolvedResources = try FastFoundationStereoMPSResources.resolve(in: resourcesDirectory)
+        let featureModelURL = options.url("feature-package") ?? resolvedResources.featureModelURL
+        let weightsDirectoryURL = options.url("weights-dir") ?? resolvedResources.weightsDirectoryURL
+        let leftURL = options.url("left") ?? URL(fileURLWithPath: "demo_data/left.png")
+        let rightURL = options.url("right") ?? URL(fileURLWithPath: "demo_data/right.png")
+        let outputURL = options.url("output") ?? URL(fileURLWithPath: "demo_data/disparity.fp32")
+        let validIterations = try options.int("valid-iters") ?? 8
+        let costPrecision = try options.nativeGraphPrecision("cost-precision") ?? .float32
+
+        let runner = try FastFoundationStereoMPSRunner(costRegularizationPrecision: costPrecision)
+        print("FastFoundationStereoMPS ready on \(runner.context.device.name)")
+        print("feature model: \(featureModelURL.path)")
+        print("weights: \(weightsDirectoryURL.path)")
+        print("left: \(leftURL.path)")
+        print("right: \(rightURL.path)")
+
+        let featureRunner = try FeatureProjectionRunner(modelURL: featureModelURL, arena: runner.arena)
+        let weights = try NativeWeights(directory: weightsDirectoryURL, device: runner.context.device)
+        let inputTensors = try ImageTensorIO.loadRGBTensors(leftURL: leftURL, rightURL: rightURL)
+        let disparity = try runner.run(
+            inputTensors: inputTensors,
+            featureRunner: featureRunner,
+            weights: weights,
+            validIterations: validIterations
+        )
+
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try ImageTensorIO.writeFP32Tensor(disparity, url: outputURL)
+        try writeDisparityMetadata(for: disparity, outputURL: outputURL)
+        let metadataURL = outputURL.appendingPathExtension("json")
+        print("disparity: \(outputURL.path)")
+        print("metadata: \(metadataURL.path)")
     }
 
     private static func run(configuration: PipelineConfiguration) async throws {
@@ -117,6 +159,17 @@ struct VulturSLAMCommand {
         print("metrics: \(outputURL.path)")
     }
 
+    private static func writeDisparityMetadata(for tensor: MetalTensor, outputURL: URL) throws {
+        let metadata = DisparityMetadata(
+            format: "fp32",
+            shape: tensor.shape.dimensions,
+            layout: tensor.shape.layout.rawValue
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(metadata).write(to: outputURL.appendingPathExtension("json"))
+    }
+
     private static func printUsage() {
         let usage = """
         usage:
@@ -124,10 +177,17 @@ struct VulturSLAMCommand {
           vultur-slam validate-config --calibration <calibration.json>
           vultur-slam list-cameras
           vultur-slam offline --left <file-or-dir> --right <file-or-dir> --calibration <calibration.json> [--output <dir>] [--max-frames <n>]
+          vultur-slam fast-foundation-stereo [--left <image>] [--right <image>] [--resources <Contents/Resources>] [--output <disparity.fp32>] [--valid-iters <n>] [--cost-precision <float32|float16>]
           vultur-slam online --calibration <calibration.json> [--left-device <id>] [--right-device <id>] [--fps <n>]
         """
         FileHandle.standardError.write(Data((usage + "\n").utf8))
     }
+}
+
+private struct DisparityMetadata: Encodable {
+    let format: String
+    let shape: [Int]
+    let layout: String
 }
 
 private struct CLIOptions {
@@ -177,6 +237,16 @@ private struct CLIOptions {
             throw UsageError.invalidValue(option: key, value: value)
         }
         return doubleValue
+    }
+
+    func nativeGraphPrecision(_ key: String) throws -> NativeGraphPrecision? {
+        guard let value = values[key] else {
+            return nil
+        }
+        guard let precision = NativeGraphPrecision(rawValue: value) else {
+            throw UsageError.invalidValue(option: key, value: value)
+        }
+        return precision
     }
 
     func requiredURL(_ key: String) throws -> URL {
