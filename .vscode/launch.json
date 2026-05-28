@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vultur-slam}",
+            "name": "Debug vultur-slam",
+            "target": "vultur-slam",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug vultur-slam"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vultur-slam}",
+            "name": "Release vultur-slam",
+            "target": "vultur-slam",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release vultur-slam"
+        }
+    ]
+}

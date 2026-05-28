@@ -1,0 +1,10 @@
+{
+  "mode": "offline",
+  "calibration_path": "Fixtures/calibration.example.json",
+  "max_frames": 1,
+  "output_directory": "/private/tmp/vultur-slam-smoke",
+  "offline": {
+    "left_path": "",
+    "right_path": ""
+  }
+}

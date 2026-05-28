@@ -1,0 +1,22 @@
+{
+  "left": {
+    "intrinsics": { "fx": 400.0, "fy": 400.0, "cx": 32.0, "cy": 24.0 },
+    "distortion": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "width": 64,
+    "height": 48
+  },
+  "right": {
+    "intrinsics": { "fx": 400.0, "fy": 400.0, "cx": 32.0, "cy": 24.0 },
+    "distortion": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "width": 64,
+    "height": 48
+  },
+  "rotation_right_to_left": [
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0
+  ],
+  "translation_right_to_left": [-0.1, 0.0, 0.0],
+  "baseline_meters": 0.1,
+  "rectification_scale": 1.0
+}
